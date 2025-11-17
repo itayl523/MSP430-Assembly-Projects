@@ -1,0 +1,144 @@
+#include  <msp430g2553.h>
+
+                                                   
+
+            ORG     0C000h                         
+RESET       mov.w   #03FFh,SP                      ; Initialize stackpointer
+
+StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL         ; Stop WDT = #WDTPW+WDTHOLD -->M(&WDTCTL)  when #WDTPW+WDTHOLD it is constant number as #0x49+0x57
+                                                   ; The names WDTPW,WDTHOLD are defined in the attached header file.
+                                           
+SetupP1     mov.b   #0x80,&P1DIR                   ; P1[7] - output - 1    P1[0-3] - input - 0  
+            mov.b   #0x00,&P1OUT                   ; Reset the port P1 [7] to zero
+SetupP2     mov.b   #0xFF,&P2DIR                   ; P1[0-7] - output - 1 
+            bic.b   #0xC0,&P2SEL                   ; only for "msp430g2553" for P2.6,P2.7 to be GPIO
+            mov.b   #0x00,&P2OUT                   ; Reset all P2 ports to zero
+           
+CheckS
+            mov.b   &P1IN,R5                       ; R5 - test register for what state we are in          
+            and.b   #0x0F,R5                       ; We check what state we are in and make a jump accordingly
+            cmp.b   #0x01,R5                
+            jeq     CountUp
+            cmp.b   #0x02,R5                
+            jeq     CountDown              
+            cmp.b   #0x04,R5              
+            jeq     SignalPWM
+            cmp.b   #0x08,R5
+            jeq     SignalPWM2
+            jmp     StateN  
+
+CountUp
+            mov.b   #0x00,R6                      ; R6 - depending on the value of the register, the LEDs will light up, initialized to zero              
+CountUpLoop
+            mov.b   R6,&P2OUT  
+            call    #Delay1sec                    ; A call to a function that pauses the program for one second
+            inc.b   R6                            ; R6 + 1
+            mov.b   &P1IN,R5                      ; Checking if we are in the same state
+            and.b   #0x0F,R5                
+            cmp.b   #0x01,R5
+            jne     CheckS
+            jmp     CountUpLoop                  ; The function is called again to increase the led value
+            
+
+CountDown
+            mov.b   #0xFF,R6                     ; R6 - depending on the value of the register, the LEDs will light up, initialized to #0xFF             
+CountDownLoop
+            mov.b   R6,&P2OUT              
+            call    #Delay1sec                   ; A call to a function that pauses the program for one second
+            dec.b   R6                           ; R6 - 1
+            mov.b   &P1IN,R5                     ; Checking if we are in the same state
+            and.b   #0x0F,R5                
+            cmp.b   #0x02,R5
+            jne     CheckS
+            jmp     CountDownLoop                ; ; The function is called again to lower the led value
+            
+
+SignalPWM
+            mov.b   #0x80,&P1OUT              ; Current flows from P1[7]
+Wait1       mov.w   #250,R15                  ; 750/3 = 250 (0.75 ms)   Delaying the program to 0.75 cycle time
+L1          dec.w   R15                       ; Decrement R15
+            jnz     L1 
+            mov.b   #0x00,&P1OUT             ; stoppage of the current
+Wait2       mov.w   #83,R15                  ; 250/3 = 83 (0.25 ms)     Delaying the program to 0.25 cycle time
+L2          dec.w   R15                      ; Decrement R15
+            jnz     L2
+            mov.b   &P1IN,R5                 ; Checking if we are in the same state               
+            and.b   #0x0F,R5                
+            cmp.b   #0x04,R5
+            jne     CheckS
+            jmp     SignalPWM
+            
+            
+            
+            
+SignalPWM2    clr     R13
+              mov.w   #2530, R4
+F1   
+              mov.b   #0x80,&P1OUT              
+Wait3         mov.w   #576,R15                  
+L3            dec.w   R15                      
+              jnz     L3 
+              mov.b   #0x00,&P1OUT            
+Wait4         mov.w   #143,R15                  
+L4            dec.w   R15                      
+              jnz     L4
+              mov.b   &P1IN,R5                              
+              and.b   #0x0F,R5                
+              cmp.b   #0x08,R5
+              jne     CheckS
+              dec     R4
+              jz      NextF  
+              jmp     F1 
+F2   
+              mov.b   #0x80,&P1OUT             
+Wait5         mov.w   #67,R15                  
+L5            dec.w   R15                       
+              jnz     L5
+              mov.b   #0x00,&P1OUT             
+Wait6         mov.w   #290,R15                  
+L6            dec.w   R15                      
+              jnz     L6
+              mov.b   &P1IN,R5                                
+              and.b   #0x0F,R5                
+              cmp.b   #0x08,R5
+              jne     CheckS
+              dec     R4
+              jz      NextF  
+              jmp     F2 
+            
+            
+            
+NextF         cmp      #0,R13
+              jz       L7
+              mov      #2530,R4
+              mov      #0,R13
+              jmp      F1
+L7            mov      #4990,R4
+              mov      #1,R13
+              jmp      F2
+              
+
+            
+            
+
+StateN      mov.b   #0x00,&P2OUT             ; If we are not in one of the three states we will stop the current for P2 and also for P1 [7]        
+            bic.b   #0x80,&P1OUT            
+            jmp     CheckS                   ; ; Checking if we are in the same state 
+            
+Delay1sec                                    ; f= 1MHz  T = 1us   10^6 = R15(R14*3 + 4)
+            mov.w #1000, R15                 ; The function will perform loops that will take a total of one second
+DelayLoop1  mov.w #332, R14 
+DelayLoop2  dec.w R14
+            jnz DelayLoop2
+            dec.w R15
+            jnz DelayLoop1
+            ret
+            
+            
+
+
+;           Interrupt Vectors
+;-------------------------------------------------------------------------------
+            ORG     0FFFEh                  ; MSP430 RESET Vector
+            DW      RESET                   ;
+            END
