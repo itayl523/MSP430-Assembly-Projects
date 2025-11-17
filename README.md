@@ -31,7 +31,6 @@ This assembly-language project for the MSP430 microcontroller reads four switche
 ## 📌 Notes  
 - The RESET button must only be used for system start-up; subsequent resets during operation are disallowed per course requirements.  
 - Timing is critical — ensure you measure delays and PWM parameters for correctness.  
-- Documentation © Hanan Ribo (lab sheet origin).
 
 
 # Project 2 – Interrupt-Driven FSM & Peripheral Control  
@@ -69,4 +68,3 @@ In this assembly project for the MSP430 microcontroller we implement a simple fi
 ## 📌 Notes  
 - RESET button must only be used at start-up.  
 - Please refer to the detailed FSM diagram in the lab report (drawn prior to code implementation).  
-- Documentation © Hanan Ribo (lab sheet origin).
