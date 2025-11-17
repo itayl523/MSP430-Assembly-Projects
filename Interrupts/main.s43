@@ -1,0 +1,72 @@
+#include  "bsp.h"
+
+             NAME   MAIN
+             PUBLIC state,main,led_state1,led_state2,state0
+             PUBLIC dir,size,data
+             EXTERN SysConfig,ClrLEDs,IncLED,ShiftLED,delay
+             EXTERN PrintLEDs,ReadSWs,LedOff,SignalPWM,PrintArr
+             
+;----------------------------------------------------------------------------------
+             ORG      DataSegStart         ; Begins a DATA segment
+             
+state        DW   0                        ; state variable
+led_state1   DB   0
+led_state2   DB   0x80
+dir          DB   1
+size         DB   8
+data         DW   0xF764, 0x5a83, 0x79d2, 0x6302, 0x2394, 0x2103, 0x63CA, 0x0345
+
+
+;-------------------------------------------------------------------------------------          
+             ;RSEG    CSTACK    ; shows to compiler where is the RAM populating limit
+                                ; can be ignored
+;-------------------------------------------------------------------------------------
+             ORG     CodeSegStart       ; Program Reset = Begins a CODE segment
+             
+main         mov.w   #StackTosStart,SP  ; Initialize stack pointer to the RAM end 
+             call    #SysConfig
+             clr     state              ; set to idle state at the beginning
+;---------------------- FSM_loop -------------------------------------
+state0       cmp     #0x00,state         ;check if state0           
+             jnz     state1
+             call    #LedOff
+             bis.w   #CPUOFF+GIE,SR 
+
+state1       cmp     #0x01,state         ;check if state1
+             jnz     state2
+             DINT 
+             call    #IncLED 
+             clr.b   state
+             bic.b   #0x01,PBsArrIntPend
+             EINT
+            
+            
+state2       cmp     #0x02,state         ;check if state2
+             jnz     state3  
+             DINT
+             call    #ShiftLED  
+             clr.b   state
+             bic.b   #0x02,PBsArrIntPend
+             EINT
+
+state3       cmp     #0x04,state         ;check if state3
+             jnz     state4
+             clr.b   state
+             bic.b   #0x04,PBsArrIntPend
+             call    #SignalPWM  
+             
+state4       cmp     #0x08,state         ;check if state3
+             jnz     state0
+             DINT
+             mov.b   dir,R7
+             call    #PrintArr
+             mov.b   #0,R7
+             call    #PrintArr
+             clr.b   state
+             bic.b   #0x08,PBsArrIntPend
+             EINT
+
+
+             jmp     state0       
+                 
+             END

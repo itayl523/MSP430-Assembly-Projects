@@ -1,0 +1,86 @@
+#include  "bsp.h"
+
+             MODULE API
+             PUBLIC IncLED,ShiftLED,LedOff,SignalPWM,PrintArr
+             EXTERN ReadSWs,led_state1,led_state2,delay,LedOff1,SignalPWM1,SignalPWM2,state0,state
+             EXTERN dir,size,data,Print,Delay_1s
+            
+             RSEG   CODE
+;-------------------------------------------------------------
+;             LEDs Increment counting 
+;-------------------------------------------------------------
+IncLED       mov.b   #cyrcleS1,R10
+             mov.b   led_state1,LEDsArrPort
+IncLED1      inc.b   LEDsArrPort
+             push    #delay0_5s
+             call    #delay
+             dec.b   R10
+             jnz     IncLED1
+             mov.b   LEDsArrPort,led_state1
+             ;bic.b   0xFF,LEDsArrPort
+             ret
+;-------------------------------------------------------------
+;             LEDs Decrement counting
+;-------------------------------------------------------------
+ShiftLED     mov.b   #cyrcleS2,R10
+             mov.b   led_state2,LEDsArrPort
+ShiftLED2    push    #delay0_5s
+             call    #delay
+             
+             ;decd.b  LEDsArrPort
+             clrc
+             rrc.b   LEDsArrPort
+             cmp.b   #0x00,LEDsArrPort
+             jne     LedNZ
+             mov.b   #0x80,LEDsArrPort
+LedNZ        dec.b   R10
+             jnz     ShiftLED2
+             push    #delay0_5s
+             call    #delay
+             mov.b   LEDsArrPort,led_state2
+             ;bic.b   0xFF,LEDsArrPort
+             ret
+             
+             
+             
+SignalPWM
+             mov.w  #cyrcle5s1kHz,R9    
+F1kHz        call   #SignalPWM1
+             cmp.b  #0x00,state
+             jnz    state0
+             dec.w  R9
+             jnz    F1kHz
+             mov.w  #cyrcle5s2kHz,R9
+F2kHz        call   #SignalPWM2 
+             cmp.b  #0x00,state
+             jnz    state0
+             dec.W  R9
+             jnz    F2kHz
+             jmp    SignalPWM
+
+PrintArr     mov.b  size,R15
+             mov.w  #data,R9
+             mov.w  R9,r10
+             add.w  #14,R10
+PrintLoop    call   #Print
+             call   #Delay_1s
+             dec.w  R15
+             jnz    PrintLoop
+             ;bic.b   0xFF,LEDsArrPort
+             ret
+
+
+;-------------------------------------------------------------
+;            Print SWs value onto LEDs
+;-------------------------------------------------------------
+LedOff 
+             ;R4=ReadSWs()
+             ;call   #ReadSWs
+             ;pop    R4
+             ;Print2LEDs(R4)
+             ;push   R4
+             call   #LedOff1
+             ret
+;-------------------------------------------------------------
+             ENDMOD    
+             END

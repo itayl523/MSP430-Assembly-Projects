@@ -1,0 +1,60 @@
+#include "msp430g2553.h"
+; The code is doing the next:
+; P2 is connected to the LEDs array
+; P1.0-P1.1 connected to pull-down PBs
+; P1.2-P1.3 connected to pull-up PBs
+; P1.4-P1.7 connected to SWs array
+; The first press of each PBs turns on the LEDs serially, 
+; the second press of each PBs shows the SWs value on the LEDs array and back again …
+;-------------------------------------------------------------------------------
+            ORG      0C000h                  ; Program Reset
+;-------------------------------------------------------------------------------
+RESET       mov.w   #03FFh,SP               ; Initialize stackpointer
+StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop WDT
+
+SetupP2     bis.b   #0xFF,&P2DIR            ; P2 output
+            bic.b   #0xC0,&P2SEL    ;only for "msp430g2553" for P2.6,P2.7 to be GPIO
+            
+SetupP1     bic.b   #0xFF,&P1SEL
+            bic.b   #0xFF,&P1DIR                               			
+            bic.b   #0x03,&P1IES     ;P1.0,P1.1 are pull-down PBs 
+            bis.b   #0x0C,&P1IES     ;P1.2,P1.3 are pull-up PBs
+            bis.b   #0x0F,&P1IE
+            bic.b   #0x0F,&P1IFG                ; reset of interrupt flag
+            bis.w   #CPUOFF+GIE,SR          ;LMP0 = go to sleep and wake up when interrupt occurs
+	    nop       
+;------------------------------------------------------------------------------------------ 
+;               PORT1 Interrupt Service Routine  of SW1=P1.0
+;------------------------------------------------------------------------------------------
+PORT1_ISR    clr.b   &P2OUT
+             call    #Wait                        ; Debounce - Very important
+             bic.b   #0x0F,&P1IFG                 ; manual clear of
+Mainloop     mov.b   #0x01,R14
+Subloop      mov.b   R14,&P2OUT            
+             call    #Wait  
+             bit.b   #0x0F,&P1IFG
+             jnz     off
+             rla.b    R14
+             tst.b    R14            
+             jz       Mainloop          
+             jmp      Subloop            
+off          mov.b    &P1IN,R14
+             and.b    #0xF0,R14
+             mov.b    R14,&P2OUT
+             bic.b    #0x0F,&P1IFG  
+             reti 
+;----------------------------------------------------------------------------------------------
+;             Delay Subroutine
+;----------------------------------------------------------------------------------------------
+Wait         mov.w   #065000,R15             
+L            dec.w   R15                     
+             jnz     L
+             ret
+;-------------------------------------------------------------------------------------------------------------------------------------------
+            COMMON  INTVEC                  ; Interrupt Vectors-Begins a common segment with name of INTVEC 
+;-------------------------------------------------------------------------------------------------------------------------------------------
+            ORG     PORT1_VECTOR            ;PORT1 Interrupt Vector
+            DW      PORT1_ISR
+            ORG     RESET_VECTOR            ; MSP430 RESET Vector
+            DW      RESET                   
+            END
